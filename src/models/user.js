@@ -1,6 +1,8 @@
 const { Schema, model } = require("mongoose");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
-const UserSchema = new Schema({
+const userSchema = new Schema({
   fullname: {
     type: String,
     required: "full name is required",
@@ -12,7 +14,6 @@ const UserSchema = new Schema({
   empId: {
     type: String,
     required: true,
-    unique: true,
   },
   mobileNo: {
     type: String,
@@ -29,6 +30,12 @@ const UserSchema = new Schema({
     },
     unique: true,
   },
+  password: {
+    type: String,
+    minlength: 7,
+    required: true,
+    trim: true,
+  },
   idCard: {
     type: Buffer,
     requried: true,
@@ -39,6 +46,43 @@ const UserSchema = new Schema({
   },
 });
 
-const user = model("User", UserSchema);
+userSchema.methods.toJSON = function () {
+  const user = this;
+  const userObject = user.toObject();
+
+  delete userObject.password;
+
+  return userObject;
+};
+
+userSchema.methods.generateAuthToken = async function () {
+  const user = this;
+  const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET);
+  return token;
+};
+
+userSchema.statics.findByCredentials = async (email, password) => {
+  const u = await user.findOne({ email });
+
+  if (!u) {
+    throw new Error("unable to login");
+  }
+  const isMatch = await bcrypt.compare(password, u.password);
+  if (!isMatch) {
+    throw new Error("unable to login");
+  }
+
+  return u;
+};
+
+userSchema.pre("save", async function (next) {
+  const user = this;
+  if (user.isModified("password")) {
+    user.password = await bcrypt.hash(user.password, 8);
+  }
+  next();
+});
+
+const user = model("User", userSchema);
 
 module.exports = user;

@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const sharp = require("sharp");
 
+const isAuthenticated = require("../middleware/auth");
 const User = require("../models/user");
 const router = new express.Router();
 
@@ -33,9 +34,22 @@ router.post("/register", upload.single("idCard"), async (req, res) => {
   }
 });
 
-router.get("/:id/avatar", async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
-    let user = await User.findOne({ _id: req.params.id });
+    const user = await User.findByCredentials(
+      req.body.email,
+      req.body.password
+    );
+    const token = await user.generateAuthToken();
+    res.json({ token: token });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.get("/avatar", isAuthenticated, async (req, res) => {
+  try {
+    let user = await User.findOne({ _id: req.user._id });
 
     if (!user) {
       throw new Error("user doesn't exist");
